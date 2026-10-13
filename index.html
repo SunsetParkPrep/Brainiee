@@ -317,9 +317,9 @@ const reminded=(function(){try{return JSON.parse(localStorage.getItem('brainiee.
 /* ---------- persistence (Firebase Google Sync) ---------- */
 const firebaseConfig = {
   apiKey: "AIzaSyCLofy5VYqCOfj7HPzEO4Z-cVn8mkZcLns",
-  authDomain: "brainiee.firebaseapp.com",
-  projectId: "brainiee",
-  storageBucket: "brainiee.firebasestorage.app",
+  authDomain: "brainiee-dd18a.firebaseapp.com",
+  projectId: "brainiee-dd18a",
+  storageBucket: "brainiee-dd18a.firebasestorage.app",
   messagingSenderId: "454739719302",
   appId: "1:454739719302:web:529b17efff44f1767e0d07",
   measurementId: "G-6SJXHSR40Y"
@@ -331,6 +331,8 @@ const db = firebase.firestore();
 
 let store = { mode: 'boot', base: null, coll: null, user: null, label: '' };
 let dirtyS = false, dirtyIds = new Set(), flushT = null, flushing = false;
+
+const cleanObj = obj => JSON.parse(JSON.stringify(obj));
 
 function setStatus(t) {
   const e = $('#status');
@@ -377,8 +379,8 @@ async function loadAll() {
           q.docs.forEach(d => { ITEMS[d.id] = d.data(); });
           setStatus('Synced with Google');
         } catch (e) {
-          console.error(e);
-          setStatus('Cloud sync error');
+          console.error("Load Error:", e);
+          setStatus('Sync error: ' + (e.code || 'permission denied'));
         }
       } else {
         store.user = null;
@@ -406,17 +408,16 @@ async function flush() {
     if (store.mode === 'db' && store.user) {
       const ids = [...dirtyIds]; dirtyIds.clear(); const doS = dirtyS; dirtyS = false;
       try {
-        if (doS) await store.base.set({ struct: S }, { merge: true });
+        if (doS) await store.base.set({ struct: cleanObj(S) }, { merge: true });
         for (const id of ids) {
           const d = store.coll.doc(id);
-          if (ITEMS[id]) await d.set(ITEMS[id]);
+          if (ITEMS[id]) await d.set(cleanObj(ITEMS[id]));
           else await d.delete();
         }
         setStatus('Synced with Google');
       } catch (e) {
-        store.mode = 'local';
-        saveLocal();
-        setStatus('Saved on this device only');
+        console.error("Save Error:", e);
+        setStatus('Sync error: ' + (e.code || 'permission denied'));
       }
     } else {
       saveLocal();
@@ -428,6 +429,7 @@ async function flush() {
     flushing = false;
   }
 }
+
 
 /* ---------- model ---------- */
 function mkItem(type,over){
